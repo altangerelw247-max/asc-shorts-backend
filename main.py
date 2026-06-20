@@ -72,7 +72,9 @@ def generate(req: GenerateRequest):
     job_dir.mkdir(parents=True, exist_ok=True)
 
     source_path = job_dir / "source.mp4"
-try:
+
+    # 1. Download the source video with yt-dlp
+    try:
         run([
             "yt-dlp",
             "-f", "mp4[height<=1080]/best[ext=mp4]",
@@ -81,6 +83,8 @@ try:
             "-o", str(source_path),
             req.url,
         ])
+    except RuntimeError as e:
+        shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Could not download video: {e}")
 
     if not source_path.exists():
