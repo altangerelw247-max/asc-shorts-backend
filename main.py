@@ -131,10 +131,11 @@ def generate(req: GenerateRequest):
                 "-i", str(source_path),
                 "-t", str(clip_len),
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,"
-                "crop=1080:1920,setsar=1",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-                "-c:a", "aac", "-b:a", "128k",
+                "scale=720:1280:force_original_aspect_ratio=increase,"
+                "crop=720:1280,setsar=1",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
+                "-threads", "1",
+                "-c:a", "aac", "-b:a", "96k",
                 "-movflags", "+faststart",
                 str(out_path),
             ], timeout=180)
