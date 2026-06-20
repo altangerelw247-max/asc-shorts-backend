@@ -113,6 +113,7 @@ def generate(req: GenerateRequest):
     spacing = max(0, (duration - clip_len) / max(1, num_clips))
 
     clip_urls = []
+    clip_errors = []
     for i in range(num_clips):
         start = i * spacing
         if start + clip_len > duration:
@@ -135,6 +136,7 @@ def generate(req: GenerateRequest):
                 str(out_path),
             ])
         except RuntimeError as e:
+            clip_errors.append(str(e))
             continue  # skip a failed clip rather than failing the whole job
 
         clip_urls.append(f"/files/{job_id}/{out_name}")
@@ -144,7 +146,8 @@ def generate(req: GenerateRequest):
 
     if not clip_urls:
         shutil.rmtree(job_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail="Failed to generate any clips.")
+        detail = clip_errors[0] if clip_errors else "Failed to generate any clips."
+        raise HTTPException(status_code=500, detail=detail)
 
     return {"job_id": job_id, "clips": clip_urls}
 
