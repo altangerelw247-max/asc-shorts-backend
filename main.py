@@ -56,11 +56,12 @@ class GenerateRequest(BaseModel):
     num_clips: int = 3      # how many shorts to produce
 
 
-def run(cmd: list[str]):
+def run(cmd: list[str], timeout: int | None = None):
     """Run a subprocess command and raise with output on failure."""
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
+        tail = (result.stderr or "")[-1500:]
+        raise RuntimeError(f"Command failed (code {result.returncode}): {' '.join(cmd)}\n{tail}")
     return result.stdout
 
 
@@ -122,7 +123,7 @@ def generate(req: GenerateRequest):
         out_name = f"short_{i+1}.mp4"
         out_path = job_dir / out_name
 
-        # 3. Cut the clip and crop to vertical 9:16 (centered)
+        # 3. Cut the clip and crop to vertical 9:16 (centered), padding if needed
         try:
             run([
                 "ffmpeg", "-y",
@@ -130,12 +131,14 @@ def generate(req: GenerateRequest):
                 "-i", str(source_path),
                 "-t", str(clip_len),
                 "-vf",
-                "crop=ih*9/16:ih,scale=1080:1920",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-c:a", "aac",
+                "scale=1080:1920:force_original_aspect_ratio=increase,"
+                "crop=1080:1920,setsar=1",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
                 str(out_path),
-            ])
-        except RuntimeError as e:
+            ], timeout=180)
+        except (RuntimeError, subprocess.TimeoutExpired) as e:
             clip_errors.append(str(e))
             continue  # skip a failed clip rather than failing the whole job
 
