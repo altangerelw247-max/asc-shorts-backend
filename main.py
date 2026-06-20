@@ -26,6 +26,13 @@ APP_DIR = Path(__file__).parent
 JOBS_DIR = APP_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
 
+# If YOUTUBE_COOKIES env var is set, write it to a cookies.txt file that
+# yt-dlp can use to authenticate as a logged-in user.
+COOKIES_PATH = APP_DIR / "cookies.txt"
+_cookies_env = os.environ.get("YOUTUBE_COOKIES")
+if _cookies_env:
+    COOKIES_PATH.write_text(_cookies_env)
+
 app = FastAPI(title="ASC-Shorts Backend")
 
 # Allow requests from your Netlify frontend (and localhost for testing)
@@ -74,15 +81,18 @@ def generate(req: GenerateRequest):
     source_path = job_dir / "source.mp4"
 
     # 1. Download the source video with yt-dlp
+    cmd = [
+        "yt-dlp",
+        "-f", "mp4[height<=1080]/best[ext=mp4]",
+        "--js-runtimes", "deno",
+        "--extractor-args", "youtube:player_client=android,web",
+    ]
+    if COOKIES_PATH.exists():
+        cmd += ["--cookies", str(COOKIES_PATH)]
+    cmd += ["-o", str(source_path), req.url]
+
     try:
-        run([
-            "yt-dlp",
-            "-f", "mp4[height<=1080]/best[ext=mp4]",
-            "--js-runtimes", "deno",
-            "--extractor-args", "youtube:player_client=android,web",
-            "-o", str(source_path),
-            req.url,
-        ])
+        run(cmd)
     except RuntimeError as e:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Could not download video: {e}")
